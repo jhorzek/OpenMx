@@ -26,6 +26,7 @@ Penalty::Penalty(S4 _obj, omxMatrix *mat) : matrix(mat)
   epsilon = robj.slot("epsilon");
   scale = robj.slot("scale");
   smoothProportion = as<double>(robj.slot("smoothProportion"));
+  smoothing = as<double>(robj.slot("smoothing"));
 }
 
 Penalty::~Penalty() {}
@@ -59,6 +60,7 @@ void Penalty::copyFrom(const Penalty *pen)
   epsilon = pen->epsilon;
   scale = pen->scale;
   smoothProportion = pen->smoothProportion;
+  smoothing = pen->smoothing;
 }
 
 double Penalty::getValue() const { return matrix->data[0]; }
@@ -174,29 +176,31 @@ void omxGlobal::importPenalty(omxMatrix *mat, S4 obj, FitContext *fc)
   if (strEQ(type, "lasso")) {
     std::unique_ptr<Penalty> rp;
     rp = std::make_unique<LassoPenalty>(obj, mat);
-  }
-  else if (strEQ(type, "ridge")) {
+    mat->penalty = std::move(rp);
+  }else if (strEQ(type, "ridge")) {
     std::unique_ptr<Penalty> rp;
     rp = std::make_unique<RidgePenalty>(obj, mat);
-  }
-  else if (strEQ(type, "elasticNet")) {
+    mat->penalty = std::move(rp);
+  }else if (strEQ(type, "elasticNet")) {
     std::unique_ptr<Penalty> rp;
     rp = std::make_unique<ElasticNetPenalty>(obj, mat);
+    mat->penalty = std::move(rp);
   }else if(strEQ(type, "smoothLasso")){
-    std::unique_ptr<SmoothPenalty> rp;
-    rp = std::make_unique<SmoothLassoPenalty>(obj, mat);
-  }else if(strEQ(type, "smoothRidge")){
-    std::unique_ptr<SmoothPenalty> rp;
-    rp = std::make_unique<SmoothRidgePenalty>(obj, mat);
-  }else if(strEQ(type, "smoothElasticNet")){
-    std::unique_ptr<SmoothPenalty> rp;
-    rp = std::make_unique<SmoothElasticNetPenalty>(obj, mat);
-  }else{
     std::unique_ptr<Penalty> rp;
+    rp = std::make_unique<SmoothLassoPenalty>(obj, mat);
+    mat->penalty = std::move(rp);
+  }else if(strEQ(type, "smoothRidge")){
+    std::unique_ptr<Penalty> rp;
+    rp = std::make_unique<SmoothRidgePenalty>(obj, mat);
+    mat->penalty = std::move(rp);
+  }else if(strEQ(type, "smoothElasticNet")){
+    std::unique_ptr<Penalty> rp;
+    rp = std::make_unique<SmoothElasticNetPenalty>(obj, mat);
+    mat->penalty = std::move(rp);
+  }else{
+    mxThrow("Unknown type of mxPenalty '%s'", type);
   }
   
-  else mxThrow("Unknown type of mxPenalty '%s'", type);
-  mat->penalty = std::move(rp);
   omxResizeMatrix(mat, 1, 1);
   
   List hpr = obj.slot("hpranges");

@@ -28,7 +28,7 @@ setClass(Class = "MxPenalty",
            epsilon = "numeric",
            scale = "numeric",
            smoothProportion = "numeric", # this is used by the previous implementations
-           smoothin = "numeric", # this will be used by smoothPenalty
+           smoothing = "numeric", # this will be used by smoothPenalty
            hyperparameters = "MxCharOrNumber",
            hpranges = "list",
            result = "matrix"
@@ -174,6 +174,95 @@ mxPenaltyZap <- function(model, silent=FALSE) {
   zapModelHelper(model)
 }
 
+
+##' mxPenaltySmoothLASSO
+##'
+##' smoothed Least Absolute Selection and Shrinkage Operator regularization
+##'
+##' @param lambda strength of the penalty to be applied at starting values (default 0)
+##' @param lambda.step step function for lambda step (default .01)
+##' @param lambda.max end of lambda range (default .4)
+##' @param lambda.min minimum lambda value (default lambda)
+##' @template args-dots-barrier
+##' @template args-regularize
+##'
+#' @export
+mxPenaltySmoothLASSO <- function(what, name, lambda=0, lambda.step=.01, lambda.max=NA, lambda.min=NA,
+                           epsilon=1e-5, scale=1, ..., hyperparams=c('lambda')) {
+  prohibitDotdotdot(list(...))
+  if(is.na(lambda.min)) lambda.min=lambda
+  if(is.na(lambda.max)) lambda.max=lambda.min+40*lambda.step
+  if (length(hyperparams) != 1) stop("Provide exactly one hyperparam")
+  mxPenalty(what, 
+            epsilon, 
+            scale, 
+            how="smoothLasso", 
+            hyperparams=hyperparams, 
+            hpranges=list(lambda=seq(lambda, lambda.max, by=lambda.step)), 
+            name=name)
+}
+
+##' mxPenaltySmoothRidge
+##'
+##' Ridge regression regularization
+##'
+##' @param lambda strength of the penalty to be applied at start (default 0)
+##' @param lambda.step lambda step during penalty search (default 0.01)
+##' @param lambda.max when to end the lambda search (default 0.4)
+##' @param lambda.min minimum lambda value (default lambda)
+##' @template args-regularize
+##' @template args-dots-barrier
+##'
+#' @export
+mxPenaltySmoothRidge <- function(what, name, lambda=0, lambda.step=.01, lambda.max=.4, lambda.min=NA,
+                           epsilon=1e-5, scale=1, ..., hyperparams=c('lambda')) {
+  prohibitDotdotdot(list(...))
+  if(is.na(lambda.min)) lambda.min=lambda
+  if (length(hyperparams) != 1) stop("Provide exactly one hyperparam")
+  mxPenalty(what, epsilon, scale, how="smoothRidge", hyperparams=hyperparams,
+            hpranges = list(lambda=seq(lambda, lambda.max, lambda.step)), name=name)
+}
+
+##' mxPenaltySmoothElasticNet
+##'
+##' smoothed Elastic net regularization
+##'
+##' @param alpha strength of the mixing parameter to be applied at start (default 0.5).  Note that 0 indicates a ridge regression with penalty \deqn{\frac{lambda}{2}}{lambda / 2}, and 1 indicates a LASSO regression with penalty lambda.
+##' @param alpha.step alpha step during penalty search (default 0.1)
+##' @param alpha.max when to end the alpha search (default 1)
+##' @param lambda strength of the penalty to be applied at starting values (default 0)
+##' @param lambda.step step function for lambda step (default .01)
+##' @param lambda.max end of lambda range (default .4)
+##' @param lambda.min beginning of the lambda range (default lambda)
+##' @param alpha.min beginning of the alpha range (default 0)
+##' @template args-regularize
+##' @template args-dots-barrier
+##'
+##' @details Applies elastic net regularization.  Elastic net is a weighted combination of ridge and LASSO penalties.
+##'
+#' @export
+mxPenaltySmoothElasticNet <- function(what, name,
+                                alpha=0,  alpha.step=.1,  alpha.max=1,
+                                lambda=0, lambda.step=.1, lambda.max=.4,
+                                alpha.min=NA, lambda.min=NA,
+                                epsilon=1e-5, scale=1, ..., hyperparams=c('alpha', 'lambda')) {
+  prohibitDotdotdot(list(...))
+  if(is.na(lambda.min)) lambda.min=lambda
+  if(is.na(alpha.min)) alpha.min=alpha
+  if (length(hyperparams) != 2) stop("Provide exactly two hyperparameters")
+  mxPenalty(what, 
+            epsilon, 
+            scale, 
+            how="smoothElasticNet", 
+            hyperparams=hyperparams,
+            hpranges = list(alpha=seq(alpha, alpha.max, alpha.step), 
+                            lambda=seq(lambda, lambda.max, by=lambda.step)), 
+            name=name)
+}
+
+#### OLD PENALTY VERSIONS ####
+
+
 ##' mxPenaltyLASSO
 ##'
 ##' Least Absolute Selection and Shrinkage Operator regularization
@@ -252,6 +341,29 @@ evaluatePenalty <- function(penalty, model, labelsData, env, show, compute) {
   
   # MxPenalty is an opaque object like MxFitFunction. show=TRUE should just
   # show the name, not the formula.
+  if(penalty@type %in% c("smoothLasso", "smoothRidge", "smoothElasticNet")){
+    
+    value <- labelToValue(penalty@params, labelsData, model)
+    svalue <- value
+    lasso <- sum(sqrt(svalue^2 + penalty@smoothing) / penalty@scale)
+    ridge <- sum((svalue/ penalty@scale)^2)
+    
+    if (penalty@type == "smoothLasso") {
+      lambda <- labelToValue(penalty@hyperparameters[1], labelsData, model)
+      result <- lambda * lasso
+    } else if (penalty@type == "smoothRidge") {
+      lambda <- labelToValue(penalty@hyperparameters[1], labelsData, model)
+      result <- lambda * ridge
+    } else if (penalty@type == "smoothElasticNet") {
+      alpha <- labelToValue(penalty@hyperparameters[1], labelsData, model)
+      lambda <- labelToValue(penalty@hyperparameters[2], labelsData, model)
+      result <- lambda * ((1-alpha) * ridge + alpha * lasso)
+    }
+    
+    return(result)
+    
+  }
+  
   
   value <- labelToValue(penalty@params, labelsData, model)
   svalue <- abs(value) / penalty@scale
@@ -280,7 +392,7 @@ evaluatePenalty <- function(penalty, model, labelsData, env, show, compute) {
 generatePenaltyList <- function(flatModel, modelname, parameters, labelsData) {
   got <- lapply(flatModel@penalties, function(p1) {
     hpnames <- p1@hyperparameters
-    lx <- match(p1@hyperparameters, rownames(labelsData))
+    lx <- match(p1@params, rownames(labelsData))
     if (any(is.na(lx))) {
       stop(paste("Cannot locate penalty parameters",
                  omxQuotes(hpnames[is.na(lx)])))
