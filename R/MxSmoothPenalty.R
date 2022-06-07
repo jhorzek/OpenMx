@@ -27,8 +27,7 @@ setClass(Class = "MxPenalty",
            params = "MxCharOrNumber",
            epsilon = "numeric",
            scale = "numeric",
-           smoothProportion = "numeric", # this is used by the previous implementations
-           smoothin = "numeric", # this will be used by smoothPenalty
+           smoothProportion = "numeric",
            hyperparameters = "MxCharOrNumber",
            hpranges = "list",
            result = "matrix"
@@ -37,15 +36,13 @@ setClass(Class = "MxPenalty",
 
 setMethod("initialize", "MxPenalty",
           function(.Object, name, type, reg_params, epsilon, scale,
-                   smoothProportion, smoothing,
-                   hyperparams=NULL, hpranges=NULL) {
+                   smoothProportion, hyperparams=NULL, hpranges=NULL) {
             .Object@name <- name
             .Object@type <- type
             .Object@params <- reg_params
             .Object@epsilon <- epsilon
             .Object@scale <- scale
             .Object@smoothProportion <- smoothProportion
-            .Object@smoothing <- smoothing
             .Object@hyperparameters <- hyperparams
             .Object@hpranges <- hpranges
             .Object
@@ -81,9 +78,6 @@ imxPenaltyTypes <- c('lasso', 'ridge', 'elasticNet',
 ##' @param hpranges a named list of hyperparameter ranges. Used in search if no ranges are specified.
 ##' @template args-regularize
 ##' @param smoothProportion what proportion of the region between \code{epsilon} and zero should be used to smooth the penalty function
-##' @param smoothing For non-smooth penalty functions (lasso, elasticNet), smoothing is a constant value
-##' which is added to the penalty to make it smooth. The procedure follows the epsL1 approach outlined
-##' in Lee, S.-I., Lee, H., Abbeel, P., & Ng, A. Y. (2006). Efficient L1 Regularized Logistic Regression. Proceedings of the Twenty-First National Conference on Artificial Intelligence (AAAI-06), 401–408.
 ##'
 ##' @details \code{mxPenalty} expects to find an \link{mxMatrix} with
 ##'   free parameters that correspond to all named hyperparameters.
@@ -99,7 +93,6 @@ imxPenaltyTypes <- c('lasso', 'ridge', 'elasticNet',
 mxPenalty <- function(what, epsilon=1e-5, scale=1,
                       how=imxPenaltyTypes,
                       smoothProportion = 0.05,
-                      smoothing = 1e-8,
                       hyperparams=c(),
                       hpranges=list(),
                       name=NULL) {
@@ -119,17 +112,8 @@ mxPenalty <- function(what, epsilon=1e-5, scale=1,
     stop(paste0("Parameters", omxQuotes(what[duplicated(what)]),
                 "added to penalty more than once"))
   }
-  
-  new("MxPenalty", 
-      name=name, 
-      type=how, 
-      reg_params=what, 
-      epsilon=epsilon, 
-      scale=scale,
-      smoothProportion=smoothProportion, 
-      smoothing = smoothing,
-      hyperparams=hyperparams, 
-      hpranges=hpranges)
+  new("MxPenalty", name=name, type=how, reg_params=what, epsilon=epsilon, scale=scale,
+      smoothProportion=smoothProportion, hyperparams=hyperparams, hpranges=hpranges)
 }
 
 regularizedToZeroParameters <- function(pen, model) {

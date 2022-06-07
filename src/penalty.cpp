@@ -72,7 +72,7 @@ double Penalty::getHP(FitContext *fc, int xx)
     for (int p1=0; p1 < numHP; ++p1) {
       omxState *state = fc->state;
       hpCache.emplace_back(hp{state->matrixList[pv[p1 * 3]],
-          pv[1 + p1 * 3], pv[2 + p1 * 3]});
+                           pv[1 + p1 * 3], pv[2 + p1 * 3]});
     }
   }
   auto &hp1 = hpCache[xx];
@@ -89,7 +89,7 @@ std::unique_ptr<Penalty> LassoPenalty::clone(omxMatrix *mat) const
 void LassoPenalty::compute(int want, FitContext *fc)
 {
   double lambda = getHP(fc, 0);
-	if (want & FF_COMPUTE_FIT) {
+  if (want & FF_COMPUTE_FIT) {
     double tmp = 0;
     for (int px = 0; px < params.size(); ++px) {
       double par = fabs(fc->est[ params[px] ] / scale[px % scale.size()]);
@@ -116,7 +116,7 @@ std::unique_ptr<Penalty> RidgePenalty::clone(omxMatrix *mat) const
 void RidgePenalty::compute(int want, FitContext *fc)
 {
   double lambda = getHP(fc, 0);
-	if (want & FF_COMPUTE_FIT) {
+  if (want & FF_COMPUTE_FIT) {
     double tmp = 0;
     for (int px = 0; px < params.size(); ++px) {
       double p1 = fabs(fc->est[ params[px] ] / scale[px % scale.size()]);
@@ -144,7 +144,7 @@ void ElasticNetPenalty::compute(int want, FitContext *fc)
 {
   double alpha = getHP(fc, 0);
   double lambda = getHP(fc, 1);
-	if (want & FF_COMPUTE_FIT) {
+  if (want & FF_COMPUTE_FIT) {
     double lasso = 0;
     double ridge = 0;
     for (int px = 0; px < params.size(); ++px) {
@@ -168,16 +168,37 @@ void ElasticNetPenalty::compute(int want, FitContext *fc)
 void omxGlobal::importPenalty(omxMatrix *mat, S4 obj, FitContext *fc)
 {
   auto &fvg = *findVarGroup(FREEVARGROUP_ALL);
-
+  
   const char *type = obj.slot("type");
-  std::unique_ptr<Penalty> rp;
-  if (strEQ(type, "lasso")) rp = std::make_unique<LassoPenalty>(obj, mat);
-  else if (strEQ(type, "ridge")) rp = std::make_unique<RidgePenalty>(obj, mat);
-  else if (strEQ(type, "elasticNet")) rp = std::make_unique<ElasticNetPenalty>(obj, mat);
+  
+  if (strEQ(type, "lasso")) {
+    std::unique_ptr<Penalty> rp;
+    rp = std::make_unique<LassoPenalty>(obj, mat);
+  }
+  else if (strEQ(type, "ridge")) {
+    std::unique_ptr<Penalty> rp;
+    rp = std::make_unique<RidgePenalty>(obj, mat);
+  }
+  else if (strEQ(type, "elasticNet")) {
+    std::unique_ptr<Penalty> rp;
+    rp = std::make_unique<ElasticNetPenalty>(obj, mat);
+  }else if(strEQ(type, "smoothLasso")){
+    std::unique_ptr<SmoothPenalty> rp;
+    rp = std::make_unique<SmoothLassoPenalty>(obj, mat);
+  }else if(strEQ(type, "smoothRidge")){
+    std::unique_ptr<SmoothPenalty> rp;
+    rp = std::make_unique<SmoothRidgePenalty>(obj, mat);
+  }else if(strEQ(type, "smoothElasticNet")){
+    std::unique_ptr<SmoothPenalty> rp;
+    rp = std::make_unique<SmoothElasticNetPenalty>(obj, mat);
+  }else{
+    std::unique_ptr<Penalty> rp;
+  }
+  
   else mxThrow("Unknown type of mxPenalty '%s'", type);
   mat->penalty = std::move(rp);
   omxResizeMatrix(mat, 1, 1);
-
+  
   List hpr = obj.slot("hpranges");
   for (int rx=0; rx < hpr.size(); ++rx) {
     CharacterVector hprNames = hpr.names();

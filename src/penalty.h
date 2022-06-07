@@ -19,6 +19,67 @@
 
 class omxMatrix;
 
+// the new definitions of the penalty functions
+// differs from the previous one as we will need different
+// tuning parameters. To account for this, I created a new class
+class SmoothPenalty{
+  struct hp {
+    omxMatrix *m;
+    int r, c;
+  };
+  std::vector<hp> hpCache;
+protected:
+  S4 robj;
+  omxMatrix *matrix;
+  IntegerVector params;
+  NumericVector epsilon;
+  NumericVector scale;
+  double smoothing; // this is the new tuning paramter which 
+  // will be used to smooth the penalty function
+  void copyFrom(const SmoothPenalty *pen);
+  
+public:
+  SmoothPenalty(S4 _obj, omxMatrix *_mat);
+  virtual ~SmoothPenalty();
+  double penaltyStrength(double absPar, int px) const;
+  int countNumZero(FitContext *fc) const;
+  virtual void compute(int ffcompute, FitContext *fc)=0;
+  const char *name() const;
+  virtual std::unique_ptr<SmoothPenalty> clone(omxMatrix *mat) const = 0;
+  double getValue() const;
+  double getHP(FitContext *fc, int xx); 
+  
+};
+
+
+class SmoothLassoPenalty : public SmoothPenalty {
+  typedef SmoothPenalty super;
+public:
+  SmoothLassoPenalty(S4 _obj, omxMatrix *_mat) : SmoothPenalty(_obj, _mat) {}
+  virtual void compute(int ffcompute, FitContext *fc) override;
+  virtual std::unique_ptr<SmoothPenalty> clone(omxMatrix *mat) const override;
+};
+
+// The ridge penalty is already smooth. However, because the implementation
+// differs from that used below, I will also create a separate ridge function
+class SmoothRidgePenalty : public SmoothPenalty {
+  typedef SmoothPenalty super;
+public:
+  RidgePenalty(S4 _obj, omxMatrix *_mat) : SmoothPenalty(_obj, _mat) {}
+  virtual void compute(int ffcompute, FitContext *fc) override;
+  virtual std::unique_ptr<SmoothPenalty> clone(omxMatrix *mat) const override;
+};
+
+class SmoothElasticNetPenalty : public SmoothPenalty {
+  typedef Penalty super;
+public:
+  SmoothElasticNetPenalty(S4 _obj, omxMatrix *_mat) : SmoothPenalty(_obj, _mat) {}
+  virtual void compute(int ffcompute, FitContext *fc) override;
+  virtual std::unique_ptr<SmoothPenalty> clone(omxMatrix *mat) const override;
+};
+
+
+// The following are the old penalty functions:
 class Penalty {
   struct hp {
     omxMatrix *m;
@@ -54,6 +115,7 @@ public:
   virtual std::unique_ptr<Penalty> clone(omxMatrix *mat) const override;
 };
 
+// The ridge penalty is always smooth
 class RidgePenalty : public Penalty {
   typedef Penalty super;
 public:
