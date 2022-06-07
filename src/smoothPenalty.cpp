@@ -33,8 +33,8 @@ void SmoothLassoPenalty::compute(int want, FitContext *fc)
     double tmp = 0;
     for (int px = 0; px < params.size(); ++px) {
       tmp += std::sqrt(std::pow(
-        fc->est[ params[px] ], 2
-      ) + smoothing)  / scale[px % scale.size()];
+        fc->est[ params[px] ]/ scale[px % scale.size()], 2
+      ) + smoothing);
       // sqrt(p^2 + e) is always differentiable if e > 0
     }
     matrix->data[0] = tmp * lambda;
@@ -43,7 +43,7 @@ void SmoothLassoPenalty::compute(int want, FitContext *fc)
     for (int px = 0; px < params.size(); ++px) {
       fc->gradZ[ params[px] ] += 
         lambda * fc->est[ params[px] ] /( scale[px % scale.size()] *
-        std::sqrt( std::pow(fc->est[ params[px] ],2) + smoothing )  );
+        std::sqrt( std::pow(fc->est[ params[px] ] / scale[px % scale.size()], 2) + smoothing )  );
     }
   }
 }
@@ -94,8 +94,8 @@ void SmoothElasticNetPenalty::compute(int want, FitContext *fc)
     for (int px = 0; px < params.size(); ++px) {
       
       lasso += std::sqrt(std::pow(
-        fc->est[ params[px] ], 2
-      ) + smoothing)  / scale[px % scale.size()];
+        fc->est[ params[px] ] / scale[px % scale.size()], 2
+      ) + smoothing)  ;
       // sqrt(p^2 + e) is always differentiable if e > 0
       
       ridge += (fc->est[ params[px] ] / scale[px % scale.size()]) * 
@@ -109,7 +109,7 @@ void SmoothElasticNetPenalty::compute(int want, FitContext *fc)
       double lassoGradient = alpha* lambda * (
         fc->est[ params[px] ] /
           ( scale[px % scale.size()] *
-            std::sqrt( std::pow(fc->est[ params[px] ],2) + smoothing )));
+            std::sqrt( std::pow(fc->est[ params[px] ] / scale[px % scale.size()] ,2) + smoothing )));
       double ridgeGradient = (1-alpha) * 2 * lambda * (fc->est[ params[px] ] / scale[px % scale.size()]);
       fc->gradZ[ params[px] ] += lassoGradient + ridgeGradient;
     }
